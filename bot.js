@@ -1,13 +1,13 @@
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const express = require('express');
-const qrcode = require('qrcode-terminal');
 const axios = require('axios');
 const fs = require('fs');
+const qrcode = require('qrcode');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json());
+let latestQR = '';
 
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: './session' }),
@@ -17,8 +17,9 @@ const client = new Client({
   }
 });
 
-client.on('qr', (qr) => {
-  qrcode.generate(qr, { small: true });
+client.on('qr', async (qr) => {
+  latestQR = qr;
+  console.log('⚠️ New QR code generated. Visit /qr to scan.');
 });
 
 client.on('ready', () => {
@@ -27,6 +28,22 @@ client.on('ready', () => {
 
 client.initialize();
 
+app.use(express.json());
+
+app.get('/qr', async (req, res) => {
+  if (!latestQR) return res.send('QR not generated yet. Please wait.');
+  const qrImage = await qrcode.toDataURL(latestQR);
+  res.send(`
+    <html>
+      <body style="text-align:center">
+        <h2>Scan this QR code with WhatsApp</h2>
+        <img src="${qrImage}" />
+      </body>
+    </html>
+  `);
+});
+
+// existing /send route
 app.post('/send', async (req, res) => {
   const { phone, fileId } = req.body;
 
@@ -61,5 +78,5 @@ app.post('/send', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🌐 Server is running on port ${PORT}`);
+  console.log(`🌐 Server is running at http://localhost:${PORT}`);
 });
